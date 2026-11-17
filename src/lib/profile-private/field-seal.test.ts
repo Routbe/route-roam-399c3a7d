@@ -42,7 +42,7 @@ describe("A1 profile field AEAD", () => {
 
   it("rejects a short key and an unknown column", () => {
     expect(() => sealProfileField(new Uint8Array(16), 1, "business_vat", crypto.randomUUID(), "x")).toThrow(FieldSealError);
-    expect(() => sealProfileField(new Uint8Array(32), 1, "email" as never, crypto.randomUUID(), "x")).toThrow(FieldSealError);
+    expect(() => sealProfileField(new Uint8Array(32), 1, "bio" as never, crypto.randomUUID(), "x")).toThrow(FieldSealError);
   });
 });
 
