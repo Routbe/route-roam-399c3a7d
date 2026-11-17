@@ -42,7 +42,7 @@ function assertField(f: string): asserts f is PrivateProfileField {
 }
 
 /** The update payload for `values`: plaintext NULL, sealed value, blind index (all NULL for an empty value). */
-export function sealProfilePatch(ring: FieldKeyring, profileId: string, values: ProfileFieldValues): SealedPatch & Record<string, null> {
+export function sealProfilePatch(ring: FieldKeyring, profileId: string, values: ProfileFieldValues): SealedPatch {
   const out: Record<string, Uint8Array | null> = {};
   const version = ring.activeVersion;
   const master = ring.key(version);
