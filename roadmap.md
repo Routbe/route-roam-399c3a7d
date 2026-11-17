@@ -336,10 +336,10 @@
 
 ## Owner directive 2026-11-17 12:09 UTC — A1 field encryption + multi-admin device keys
 - [x] A1: application-level AEAD encryption (RPF1, XChaCha20-Poly1305) + blind HMAC-BLAKE3 indexes; keys wrapped under ROUT_VAULT_KEK
-- [ ] A1 round 2: move readers of email, forwarding email, legal names, last city/country, then add them to BACKFILL_FIELDS (waits on owner scope answer)
+- [ ] A1 round 2 (owner chose: all private fields now): move readers/writers of email, forwarding email + token, legal names, last city/country, then add them to BACKFILL_FIELDS; admin email search becomes exact match
 - [x] A1: read/write paths for VAT, Stripe account, payment method, moderation reason/moderator, export and referral moved; fast-check suites green
 - [ ] A1: EXPAND 0287 + rollback + backfill script prepared in db-pending (not applied) — waits for "GO A1"
-- [ ] Device key register (workspace_member_device_keys) + per-device HPKE X25519 envelopes (workspace_member_envelopes)
+- [ ] Device key register (workspace_member_device_keys) + per-device HPKE envelopes (workspace_member_envelopes) — owner chose RFC 9180 HPKE with X-Wing (ML-KEM-768 + X25519) as KEM
 - [ ] Automatic epoch rotation when a manager role is revoked
 - [ ] /w/:slug/ask seals against the active epoch key; managers decrypt only through their registered device envelopes
 - [ ] Device key migration prepared, not applied — wait for owner GO
