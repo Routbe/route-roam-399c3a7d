@@ -109,10 +109,6 @@ use the editor.
 ## Server function guards
 - createServerFn exports need requireAuth/requireDeveloperAccess/optionalAuth or an entry in PUBLIC_SERVER_FNS (src/test/server-fn-auth-guard.test.ts). Why: route gates only hide UI.
 
-## Profile field encryption (A1)
-- Private profile fields are written only through profileFieldPatch/writeProfilePrivateFields and read through openProfileRows (src/lib/profile-private/sealed-profile.server.ts); field keys exist in Neon only wrapped under ROUT_VAULT_KEK (vault_enclave.profile_field_keys, db-pending/0287), and a field joins BACKFILL_FIELDS only in the change that moves its last plaintext reader. Why: sealing a field before its readers move silently blanks it in the app.
-- is_shadowbanned stays plaintext and referred_by is read through rout_profile_referred_mine. Why: SQL visibility and referral logic run inside the database.
-
 <!-- AGENT-MEMORY:BEGIN -->
 ## One-file migration rollout
 - A GO for a single migration is applied with scripts/migration-rollout.ts --apply: the exact db/ file text travels as one parameter, runs only if its SHA-256 equals the file checksum and its predecessor is recorded, and is recorded with the definer guard in the same transaction (dry run: src/test/migration-rollout.test.ts). Why: a retyped or hand-split file must never diverge from db/.
