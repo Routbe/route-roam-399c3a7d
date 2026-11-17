@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { db } from "@/lib/db/client";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { selectTolerant } from "@/lib/optional-columns";
+import { adminMemberPaymentMethods } from "@/lib/admin-members.functions";
 import { formatDateTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { i18n as trI18n } from "@/lib/i18n";
@@ -85,6 +86,9 @@ export function MemberStatusPanel() {
       ]);
       if (pErr) throw new Error(pErr.message);
       if (bErr) throw new Error(bErr.message);
+      // A1: the payment method is sealed in the database; the server opens it for admins only.
+      const ids = (profiles ?? []).map((p) => p.id as string);
+      const methods = ids.length ? await adminMemberPaymentMethods({ data: { ids } }).catch(() => ({}) as Record<string, string | null>) : {};
 
       const bySlug = new Map<string, string[]>();
       for (const row of grants ?? []) {
@@ -97,6 +101,7 @@ export function MemberStatusPanel() {
       setRows(
         (profiles ?? []).map((p) => ({
           ...(p as Omit<MemberRow, "badges">),
+          payment_method: (methods as Record<string, string | null>)[p.id as string] ?? (p as MemberRow).payment_method ?? null,
           badges: (bySlug.get(p.id as string) ?? []).sort(),
         })),
       );

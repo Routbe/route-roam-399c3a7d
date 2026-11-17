@@ -319,6 +319,8 @@ function normalize(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value;
+  // bytea (sealed profile fields, blind indexes) goes to the driver as bytes, never as JSON.
+  if (value instanceof Uint8Array) return value;
   if (typeof value === "object") return JSON.stringify(value);
   return value;
 }

@@ -29,8 +29,12 @@ export async function bestPriceCents(
     // New members who came in through an invite get 10% off (inviter rewards above still apply to inviters).
     const { inviteePriceCents } = await import("./referral-rewards");
     const { sql } = await import("./neon");
-    const rows = (await sql`select referred_by from public.profiles where id = ${userId} limit 1`) as { referred_by: string | null }[];
-    const referred = !!rows[0]?.referred_by;
+    // A1: from db-pending/0287 on, referred_by is answered by an owner-only definer (the CONTRACT withholds the column).
+    const { profileSealingLive } = await import("./profile-private/sealed-profile.server");
+    const { withDbContext } = await import("./neon");
+    const referred = (await profileSealingLive())
+      ? (((await withDbContext({ userId, workspaceId: null }, () => sql`select public.rout_profile_referred_mine() as referred`)) as { referred: boolean }[])[0]?.referred === true)
+      : !!(((await sql`select referred_by from public.profiles where id = ${userId} limit 1`) as { referred_by: string | null }[])[0]?.referred_by);
     const inviteePrice = inviteePriceCents(base, referred) + methodFeeCents(method, pricing);
     return Math.min(promoPrice, referralPrice, inviteePrice);
   } catch {

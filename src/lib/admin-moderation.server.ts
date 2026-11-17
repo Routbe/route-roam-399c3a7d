@@ -11,6 +11,7 @@ import type { UserSegment } from "./admin-segments";
 import { VIP_HANDLE_GRANT, needsVipGrant, normalizeHandleInput } from "./handle-rules";
 import { writeAudit } from "./admin.server";
 import { selectTolerant } from "./optional-columns";
+import { openProfileRows, profileFieldPatch, sealedSelectList } from "./profile-private/sealed-profile.server";
 
 const PERMANENT_BAN = "876000h"; // ~100 years
 
@@ -213,8 +214,10 @@ export async function listUsersPage(opts: {
     );
   };
 
-  const { data, count } = await selectTolerant<ProfileRow[]>(
-    PROFILE_COLUMNS,
+  // A1: moderation reason and payment method come back sealed once db-pending/0287 is live.
+  const A1_FIELDS = ["moderation_reason", "payment_method"] as const;
+  const { data: rawData, count } = await selectTolerant<ProfileRow[]>(
+    PROFILE_COLUMNS + (await sealedSelectList(A1_FIELDS)),
     (cols) =>
       applySearch(buildQuery(cols)).range(from, from + perPage - 1) as PromiseLike<{
         data: ProfileRow[] | null;
@@ -223,6 +226,7 @@ export async function listUsersPage(opts: {
       }>,
     ["last_country", "last_city", "is_shadowbanned"],
   ).then((r) => ({ data: r.data, count: (r as { count?: number | null }).count ?? null }));
+  const data = await openProfileRows((rawData ?? []) as ProfileRow[], A1_FIELDS);
 
   // Elke gebruiker heeft twee identiteiten: het geverifieerde rootprofiel en
   // het gratis aliasprofiel. Beide handles worden in één extra query opgehaald.
@@ -260,9 +264,9 @@ export async function setSuspension(opts: {
     .update({
       is_suspended: opts.suspended,
       status: opts.suspended ? "suspended" : "active",
-      moderation_reason: opts.suspended ? (opts.reason ?? null) : null,
+      // A1: reason and moderator are sealed (plaintext NULL) once db-pending/0287 is live.
+      ...(await profileFieldPatch(opts.userId, { moderation_reason: opts.suspended ? (opts.reason ?? null) : null, moderated_by: opts.adminId })),
       moderated_at: new Date().toISOString(),
-      moderated_by: opts.adminId,
     })
     .eq("id", opts.userId);
   if (error) return { ok: false as const, reason: error.message };
@@ -307,9 +311,8 @@ export async function setBan(opts: {
       is_banned: opts.banned,
       is_suspended: opts.banned,
       status: opts.banned ? "banned" : "active",
-      moderation_reason: opts.banned ? (opts.reason ?? null) : null,
+      ...(await profileFieldPatch(opts.userId, { moderation_reason: opts.banned ? (opts.reason ?? null) : null, moderated_by: opts.adminId })),
       moderated_at: new Date().toISOString(),
-      moderated_by: opts.adminId,
     })
     .eq("id", opts.userId);
   if (error) return { ok: false as const, reason: error.message };
@@ -700,7 +703,7 @@ export async function markUserPaid(opts: {
       verified: opts.paid,
       verified_at: opts.paid ? new Date().toISOString() : null,
       tier: opts.paid ? "verified" : "free",
-      payment_method: opts.paid ? "manual_admin" : null,
+      ...(await profileFieldPatch(opts.userId, { payment_method: opts.paid ? "manual_admin" : null })),
     })
     .eq("id", opts.userId);
   if (error) return { ok: false as const, reason: error.message };
@@ -926,7 +929,7 @@ export async function reprocessInboundPayment(eventId: string, adminId: string) 
     .update({
       is_paid: true,
       is_early_believer: true,
-      payment_method: "bank_transfer_manual_reprocess",
+      ...(await profileFieldPatch(payment.user_id, { payment_method: "bank_transfer_manual_reprocess" })),
       tier: payment.tier,
       verified: true,
       status: "active",

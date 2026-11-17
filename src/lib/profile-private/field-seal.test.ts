@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { blindIndex, FieldSealError, normalizeForIndex, openProfileField, PRIVATE_PROFILE_FIELDS, sealProfileField } from "./field-seal";
+import { blindIndex, FieldSealError, INDEX_ONLY_FIELDS, INDEXED_PROFILE_FIELDS, normalizeForIndex, openProfileField, PRIVATE_PROFILE_FIELDS, sealProfileField } from "./field-seal";
 
 const key = () => fc.uint8Array({ minLength: 32, maxLength: 32 });
 const field = fc.constantFrom(...PRIVATE_PROFILE_FIELDS);
@@ -42,29 +42,51 @@ describe("A1 profile field AEAD", () => {
 
   it("rejects a short key and an unknown column", () => {
     expect(() => sealProfileField(new Uint8Array(16), 1, "business_vat", crypto.randomUUID(), "x")).toThrow(FieldSealError);
-    expect(() => sealProfileField(new Uint8Array(32), 1, "email" as never, crypto.randomUUID(), "x")).toThrow(FieldSealError);
+    expect(() => sealProfileField(new Uint8Array(32), 1, "bio" as never, crypto.randomUUID(), "x")).toThrow(FieldSealError);
   });
 });
 
 describe("A1 HMAC-BLAKE3 blind index", () => {
-  it("is deterministic and equal for equivalent spellings", () => {
-    fc.assert(fc.property(key(), field, value, (k, f, v) => {
-      expect(blindIndex(k, 1, f, v)).toEqual(blindIndex(k, 1, f, ` ${v.toUpperCase()} `));
+  const blind = fc.constantFrom(...INDEXED_PROFILE_FIELDS, ...INDEX_ONLY_FIELDS);
+  const hex = (b: Uint8Array) => Buffer.from(b).toString("hex");
+
+  it("is deterministic per column and key version", () => {
+    fc.assert(fc.property(key(), blind, value, (k, f, v) => {
+      expect(hex(blindIndex(k, 1, f, v))).toBe(hex(blindIndex(k, 1, f, v)));
     }), { numRuns: 200 });
+  });
+
+  it("meets equivalent spellings where the column allows it", () => {
     const k = new Uint8Array(32).fill(7);
-    expect(blindIndex(k, 1, "business_vat", "BE 0123.456.789")).toEqual(blindIndex(k, 1, "business_vat", "be0123.456.789"));
-  });
-
-  it("separates columns, key versions and distinct values", () => {
-    fc.assert(fc.property(key(), field, field, value, value, (k, f, f2, v, v2) => {
-      const h = Buffer.from(blindIndex(k, 1, f, v)).toString("hex");
-      if (f !== f2) expect(Buffer.from(blindIndex(k, 1, f2, v)).toString("hex")).not.toBe(h);
-      expect(Buffer.from(blindIndex(k, 2, f, v)).toString("hex")).not.toBe(h);
-      if (normalizeForIndex(v) !== normalizeForIndex(v2)) expect(Buffer.from(blindIndex(k, 1, f, v2)).toString("hex")).not.toBe(h);
+    expect(blindIndex(k, 1, "business_vat", "BE 0123.456.789")).toEqual(blindIndex(k, 1, "business_vat", "be0123456789"));
+    expect(blindIndex(k, 1, "email", " Ann@Example.COM ")).toEqual(blindIndex(k, 1, "email", "ann@example.com"));
+    expect(blindIndex(k, 1, "forwarding_email", "A@B.be")).toEqual(blindIndex(k, 1, "forwarding_email", "a@b.be"));
+    fc.assert(fc.property(key(), fc.stringMatching(/^[a-z0-9._@-]{0,40}$/), (kk, v) => {
+      expect(blindIndex(kk, 1, "email", ` ${v.toUpperCase()} `)).toEqual(blindIndex(kk, 1, "email", v));
+      expect(blindIndex(kk, 1, "business_vat", v.toUpperCase().split("").join(" "))).toEqual(blindIndex(kk, 1, "business_vat", v));
     }), { numRuns: 200 });
   });
 
-  it("does not contain the plaintext", () => {
+  it("keeps case-sensitive Stripe ids and opaque tokens apart", () => {
+    const k = new Uint8Array(32).fill(9);
+    expect(hex(blindIndex(k, 1, "stripe_account_id", "acct_1AbC"))).not.toBe(hex(blindIndex(k, 1, "stripe_account_id", "acct_1abc")));
+    expect(hex(blindIndex(k, 1, "forwarding_email_token", "Tok"))).not.toBe(hex(blindIndex(k, 1, "forwarding_email_token", "tok")));
+    expect(blindIndex(k, 1, "stripe_account_id", " acct_1AbC ")).toEqual(blindIndex(k, 1, "stripe_account_id", "acct_1AbC"));
+  });
+
+  it("separates columns, key versions, keys and distinct canonical values", () => {
+    fc.assert(fc.property(key(), key(), blind, blind, value, value, (k, k2, f, f2, v, v2) => {
+      const h = hex(blindIndex(k, 1, f, v));
+      if (f !== f2) expect(hex(blindIndex(k, 1, f2, v))).not.toBe(h);
+      expect(hex(blindIndex(k, 2, f, v))).not.toBe(h);
+      if (k2.some((b, i) => b !== k[i])) expect(hex(blindIndex(k2, 1, f, v))).not.toBe(h);
+      if (normalizeForIndex(f, v) !== normalizeForIndex(f, v2)) expect(hex(blindIndex(k, 1, f, v2))).not.toBe(h);
+    }), { numRuns: 300 });
+  });
+
+  it("refuses unindexed columns and short keys, and never contains the plaintext", () => {
+    expect(() => blindIndex(new Uint8Array(32), 1, "moderation_reason" as never, "x")).toThrow(FieldSealError);
+    expect(() => blindIndex(new Uint8Array(16), 1, "email", "x")).toThrow(FieldSealError);
     const h = blindIndex(new Uint8Array(32).fill(1), 1, "business_vat", "be0123456789");
     expect(h.length).toBe(32);
     expect(Buffer.from(h).toString("latin1")).not.toContain("0123456789");

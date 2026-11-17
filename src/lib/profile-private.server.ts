@@ -43,7 +43,14 @@ export async function exportMyProfileRow(userId: string): Promise<Record<string,
   return asOwner(userId, async () => {
     if (await hasSchemaFeature("0276")) {
       const rows = (await sql`select public.rout_profile_export_mine() as row`) as { row: Record<string, unknown> | null }[];
-      return rows[0]?.row ?? null;
+      const row = rows[0]?.row ?? null;
+      if (!row) return null;
+      // A1 (db-pending/0287): the owner's export shows sealed fields opened, never ciphertext or indexes.
+      const { sealedBytesFromJson, withoutSealedColumns } = await import("./profile-private/sealed-profile");
+      const { openProfileRowOne } = await import("./profile-private/sealed-profile.server");
+      const { PRIVATE_PROFILE_FIELDS } = await import("./profile-private/field-seal");
+      const opened = await openProfileRowOne(sealedBytesFromJson(row), PRIVATE_PROFILE_FIELDS);
+      return opened ? withoutSealedColumns(opened) : null;
     }
     const rows = (await sql`select * from public.profiles where id = ${userId} limit 1`) as Record<string, unknown>[];
     return rows[0] ?? null;
