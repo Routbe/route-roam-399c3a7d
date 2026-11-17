@@ -38,7 +38,8 @@ beforeAll(async () => {
   await applyPending(db, FILE);
   await db.exec(`
     insert into public.users (id, email) values ('${A}', 'a@example.test'), ('${B}', 'b@example.test'), ('${C}', 'c@example.test');
-    insert into public.profiles (id, username) values ('${A}', 'a-one'), ('${B}', 'b-two'), ('${C}', 'c-three');
+    insert into public.profiles (id, username) values ('${A}', 'a-one'), ('${B}', 'b-two'), ('${C}', 'c-three')
+      on conflict (id) do update set username = excluded.username;
     update public.profiles set referred_by = '${A}' where id = '${B}';
   `);
 }, 600_000);
