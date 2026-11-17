@@ -78,3 +78,14 @@ export const adminGrantVerification = createServerFn({ method: "POST" })
     const { grantVerification } = await import("./admin-grant.server");
     return grantVerification({ ...data, adminId: context.userId });
   });
+
+/** A1: payment method per member, opened on the server (sealed once db-pending/0287 is live). */
+export const adminMemberPaymentMethods = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d: unknown) => z.object({ ids: z.array(z.string().uuid()).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await admin(context.userId);
+    const { readProfileFieldsByIds } = await import("./profile-private/sealed-profile.server");
+    const rows = await readProfileFieldsByIds(data.ids, ["payment_method"] as const);
+    return Object.fromEntries(Object.entries(rows).map(([id, r]) => [id, r.payment_method ?? null])) as Record<string, string | null>;
+  });

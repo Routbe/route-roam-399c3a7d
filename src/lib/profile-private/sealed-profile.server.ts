@@ -89,3 +89,26 @@ export async function writeProfilePrivateFields(profileId: string, values: Profi
   const text = `update public.profiles set ${cols.map((c, i) => `${c} = $${i + 2}`).join(", ")}, updated_at = now() where id = $1`;
   await sql.query(text, [profileId, ...cols.map((c) => patch[c] ?? null)]);
 }
+
+/**
+ * Private fields of several profiles, opened server-side. Only for callers that already
+ * authorised the read (admin screens); reads legacy plaintext before 0287.
+ */
+export async function readProfileFieldsByIds<F extends PrivateProfileField>(
+  ids: readonly string[],
+  fields: readonly F[],
+): Promise<Record<string, Partial<Record<F, string | null>>>> {
+  if (!ids.length || !fields.length) return {};
+  const { dbAdmin } = await import("@/lib/db/admin.server");
+  const live = await profileSealingLive();
+  const cols = ["id", ...(live ? fields.map((f) => sealedColumn(f)) : fields)].join(", ");
+  const { data, error } = await dbAdmin.from("profiles").select(cols).in("id", [...ids]);
+  if (error) throw new Error(error.message);
+  const opened = await openProfileRows((data ?? []) as unknown as Array<Record<string, unknown> & { id: string }>, fields);
+  const out: Record<string, Partial<Record<F, string | null>>> = {};
+  for (const row of opened) {
+    const r = row as Record<string, unknown>;
+    out[String(r["id"])] = Object.fromEntries(fields.map((f) => [f, (r[f] as string | null | undefined) ?? null])) as Partial<Record<F, string | null>>;
+  }
+  return out;
+}
