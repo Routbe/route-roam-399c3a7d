@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { deriveFieldKek, generateFieldKey, openFieldKeyring, type FieldKeyring, type StoredFieldKey } from "@/lib/profile-private/field-keys";
 import { PRIVATE_PROFILE_FIELDS } from "@/lib/profile-private/field-seal";
+import { backfillSelect, backfillStatements, BACKFILL_FIELDS } from "@/lib/profile-private/backfill-plan";
 import { bidxColumn, indexCandidates, openProfileRow, sealedColumn, SEALED_COLUMNS, sealProfilePatch } from "@/lib/profile-private/sealed-profile";
 
 const A = "00000000-0000-4000-8000-0000000002a1";
@@ -200,6 +201,40 @@ describe("sealed writes and reads as rout_app", () => {
       ring.dispose();
     }
   }, 120_000);
+});
+
+describe("backfill", () => {
+  it("seals every legacy value, nulls the plaintext and skips a row changed in between", async () => {
+    const D = "00000000-0000-4000-8000-0000000002a4";
+    await db.exec(`insert into public.users (id, email) values ('${D}', 'd@example.test');
+      update public.profiles set business_vat = 'NL123456789B01', payment_method = 'stripe', moderation_reason = 'legacy note',
+        moderated_by = '${A}', stripe_account_id = 'acct_legacyD' where id = '${D}';`);
+    const ring = await loadRing();
+    try {
+      const sel = backfillSelect(500);
+      const rows = (await db.query<Record<string, unknown>>(sel.query, sel.params)).rows;
+      expect(rows.map((r) => r["id"])).toContain(D);
+      const stmts = backfillStatements(ring, rows.filter((r) => r["id"] === D));
+      expect(stmts).toHaveLength(BACKFILL_FIELDS.length);
+      // A concurrent write between read and update: that field is left for the next batch.
+      await db.exec(`update public.profiles set payment_method = 'bank_transfer_automatic' where id = '${D}'`);
+      await db.exec("begin");
+      let changed = 0;
+      for (const st of stmts) changed += (await db.query(st.query, st.params)).affectedRows ?? 0;
+      await db.exec("commit");
+      expect(changed).toBe(BACKFILL_FIELDS.length - 1);
+      const [raw] = (await db.query<Record<string, unknown>>(`select * from public.profiles where id = $1`, [D])).rows;
+      for (const f of BACKFILL_FIELDS.filter((f) => f !== "payment_method")) expect(raw![f], f).toBeNull();
+      expect(raw!["payment_method"]).toBe("bank_transfer_automatic");
+      expect(openProfileRow(ring, raw!, BACKFILL_FIELDS.filter((f) => f !== "payment_method"))).toMatchObject({
+        business_vat: "NL123456789B01", moderation_reason: "legacy note", moderated_by: A, stripe_account_id: "acct_legacyD",
+      });
+      const found = (await db.query<{ id: string }>(`select id from public.profiles where stripe_account_id_bidx = any($1::bytea[])`, [indexCandidates(ring, "stripe_account_id", "acct_legacyD")])).rows;
+      expect(found.map((r) => r.id)).toEqual([D]);
+    } finally {
+      ring.dispose();
+    }
+  });
 });
 
 describe("referred_by behind a definer", () => {

@@ -21,9 +21,11 @@
 --                    its effect is public by design, sealing it would only stop the enforcement.
 --   referred_by      gets an owner-only definer here; the CONTRACT withholds the column.
 --
--- Backfill (owner, after GO): scripts/a1-backfill.ts seals every legacy value and sets the
--- plaintext column to NULL in batches. CONTRACT (db-pending/0288, after the backfill reports 0
--- remaining): withholds the plaintext columns from rout_app and requires them to stay NULL.
+-- Backfill (owner, after GO): scripts/a1-backfill.ts seals the legacy values of the fields whose
+-- readers already use the sealed columns (BACKFILL_FIELDS in src/lib/profile-private/backfill-plan.ts:
+-- VAT, Stripe account, payment method, moderation reason and moderator) and sets their plaintext to
+-- NULL in batches. The other sealed columns stay empty until their readers move. The CONTRACT
+-- (withhold the plaintext columns from rout_app, require NULL) is a later, separate migration.
 -- Rollback: db-pending/0287_profile_field_encryption_rollback.sql (refuses once anything is sealed).
 
 -- ---------------------------------------------------------------- key ring
