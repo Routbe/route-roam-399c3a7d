@@ -148,9 +148,10 @@ describe("sealed writes and reads as rout_app", () => {
     const ring = await loadRing();
     try {
       const patch = sealProfilePatch(ring, C, { moderation_reason: "Spam reports from 4 members", moderated_by: A, payment_method: "manual_admin" });
-      await writeAs(A, C, { ...patch, moderated_at: new Date().toISOString() });
+      // Row security lets a member write only their own row; the app's admin path runs in the owner's context.
+      await writeAs(C, C, { ...patch, moderated_at: new Date().toISOString() });
       const cols = ["moderation_reason", "moderated_by", "payment_method"] as const;
-      const [raw] = await asApp<Record<string, unknown>>(A, `select id, ${cols.map((c) => `${c}, ${sealedColumn(c)}`).join(", ")} from public.profiles where id = $1`, [C]);
+      const [raw] = await asApp<Record<string, unknown>>(C, `select id, ${cols.map((c) => `${c}, ${sealedColumn(c)}`).join(", ")} from public.profiles where id = $1`, [C]);
       for (const c of cols) expect(raw![c]).toBeNull();
       expect(Buffer.from(raw!["moderation_reason_sealed"] as Uint8Array).includes(Buffer.from("Spam reports"))).toBe(false);
       const open = openProfileRow(ring, raw!, cols);
@@ -177,8 +178,8 @@ describe("sealed writes and reads as rout_app", () => {
 
   it("refuses malformed ciphertext and an index without ciphertext", async () => {
     await expect(writeAs(A, A, { business_vat_sealed: new Uint8Array(200) })).rejects.toThrow(/sealed_shape/);
-    await expect(writeAs(A, B, { email_bidx: new Uint8Array(32), email_sealed: null })).rejects.toThrow(/bidx_pair/);
-    await expect(writeAs(A, B, { forwarding_email_token_bidx: new Uint8Array(31) })).rejects.toThrow(/bidx_len/);
+    await expect(writeAs(B, B, { email_bidx: new Uint8Array(32), email_sealed: null })).rejects.toThrow(/bidx_pair/);
+    await expect(writeAs(B, B, { forwarding_email_token_bidx: new Uint8Array(31) })).rejects.toThrow(/bidx_len/);
   });
 
   it("arbitrary values round-trip through the table (fast-check)", async () => {
@@ -189,8 +190,10 @@ describe("sealed writes and reads as rout_app", () => {
         fc.string({ unit: "grapheme", minLength: 1, maxLength: 300 }),
         async (f, v) => {
           await writeAs(B, B, sealProfilePatch(ring, B, { [f]: v }));
-          const [raw] = await asApp<Record<string, unknown>>(B, `select id, ${f}, ${sealedColumn(f)} from public.profiles where id = $1`, [B]);
-          expect(raw![f]).toBeNull();
+          // The app role reads only the ciphertext (several plaintext columns are withheld since 0277).
+          const [raw] = await asApp<Record<string, unknown>>(B, `select id, ${sealedColumn(f)} from public.profiles where id = $1`, [B]);
+          const [plain] = (await db.query<Record<string, unknown>>(`select ${f} from public.profiles where id = $1`, [B])).rows;
+          expect(plain![f]).toBeNull();
           expect(openProfileRow(ring, raw!, [f])[f]).toBe(v);
         }), { numRuns: 40 });
     } finally {
