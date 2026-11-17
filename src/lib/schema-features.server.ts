@@ -9,6 +9,8 @@ import { sql } from "@/lib/neon";
 const MARKERS = {
   /** db-pending/0276_tenant_column_expand.sql */
   "0276": "public.rout_profile_private_mine()",
+  /** db-pending/0287_profile_field_encryption.sql (A1 sealed profile fields) */
+  "0287": "public.rout_profile_field_keys()",
 } as const;
 export type SchemaFeature = keyof typeof MARKERS;
 

@@ -5,7 +5,7 @@
  * (rotation) are an owner operation (scripts/a1-field-keys.ts), never done by the app role.
  */
 import { sql } from "@/lib/neon";
-import { deriveFieldKek, FieldKeyError, generateFieldKey, openFieldKeyring, type FieldKeyring, type StoredFieldKey } from "./field-keys";
+import { deriveFieldKek, generateFieldKey, openFieldKeyring, type FieldKeyring, type StoredFieldKey } from "./field-keys";
 
 export class FieldKekMissingError extends Error {
   constructor() {
@@ -51,8 +51,6 @@ export async function withProfileFieldKeys<T>(use: (ring: FieldKeyring | null) =
     if (stored.length === 0) return await use(null);
     ring = openFieldKeyring(kek, stored);
     return await use(ring);
-  } catch (error) {
-    throw error instanceof FieldKeyError || error instanceof FieldKekMissingError ? error : error;
   } finally {
     ring?.dispose();
     kek.dispose();
