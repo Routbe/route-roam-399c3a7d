@@ -61,9 +61,10 @@ describe("A1 HMAC-BLAKE3 blind index", () => {
     expect(blindIndex(k, 1, "business_vat", "BE 0123.456.789")).toEqual(blindIndex(k, 1, "business_vat", "be0123456789"));
     expect(blindIndex(k, 1, "email", " Ann@Example.COM ")).toEqual(blindIndex(k, 1, "email", "ann@example.com"));
     expect(blindIndex(k, 1, "forwarding_email", "A@B.be")).toEqual(blindIndex(k, 1, "forwarding_email", "a@b.be"));
-    fc.assert(fc.property(key(), fc.string({ maxLength: 40 }), (kk, v) => {
-      expect(blindIndex(kk, 1, "email", v.toUpperCase())).toEqual(blindIndex(kk, 1, "email", ` ${v.toLowerCase()} `.toLowerCase()) ?? null);
-    }).bind(null) as never, { numRuns: 0 });
+    fc.assert(fc.property(key(), fc.stringMatching(/^[a-z0-9._@-]{0,40}$/), (kk, v) => {
+      expect(blindIndex(kk, 1, "email", ` ${v.toUpperCase()} `)).toEqual(blindIndex(kk, 1, "email", v));
+      expect(blindIndex(kk, 1, "business_vat", v.toUpperCase().split("").join(" "))).toEqual(blindIndex(kk, 1, "business_vat", v));
+    }), { numRuns: 200 });
   });
 
   it("keeps case-sensitive Stripe ids and opaque tokens apart", () => {
