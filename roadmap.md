@@ -335,9 +335,10 @@
 - [ ] A1 profile privacy: EXPAND (definers for moderation/Stripe/VAT reads, code moved) then CONTRACT in db-pending revoking those columns from rout_app
 
 ## Owner directive 2026-11-17 12:09 UTC — A1 field encryption + multi-admin device keys
-- [ ] A1: application-level AEAD encryption for every private profile field + blind HMAC-BLAKE3 indexes for lookups (no plaintext PII in Neon)
-- [ ] A1: read/write paths for profile fields moved to the sealed columns; full fast-check suite green
-- [ ] A1: EXPAND migration prepared in db-pending (not applied) — wait for "GO A1"
+- [x] A1: application-level AEAD encryption (RPF1, XChaCha20-Poly1305) + blind HMAC-BLAKE3 indexes; keys wrapped under ROUT_VAULT_KEK
+- [ ] A1 round 2: move readers of email, forwarding email, legal names, last city/country, then add them to BACKFILL_FIELDS (waits on owner scope answer)
+- [x] A1: read/write paths for VAT, Stripe account, payment method, moderation reason/moderator, export and referral moved; fast-check suites green
+- [ ] A1: EXPAND 0287 + rollback + backfill script prepared in db-pending (not applied) — waits for "GO A1"
 - [ ] Device key register (workspace_member_device_keys) + per-device HPKE X25519 envelopes (workspace_member_envelopes)
 - [ ] Automatic epoch rotation when a manager role is revoked
 - [ ] /w/:slug/ask seals against the active epoch key; managers decrypt only through their registered device envelopes
