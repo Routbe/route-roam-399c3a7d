@@ -1,8 +1,44 @@
 [
-  {"capability":"code","source":"github.com/Routbe/route-roam-92cd76ce@542a912","outcome":"copied as is (no .git, no node_modules)","status":"done","next_action":"none"},
-  {"capability":"preview build","source":"vendor-neutral vite.config.ts","outcome":"Lovable preview config in vite.config.ts; self-host config kept as vite.selfhost.config.ts (used by build:vercel)","status":"verified","next_action":"none"},
-  {"capability":"database (Neon Postgres, 280 migrations)","source":"db/","outcome":"pending user decision: keep Neon or move to Lovable Cloud","status":"pending","next_action":"await answer"},
-  {"capability":"auth (Better Auth, passkeys only)","source":"src/lib/auth","outcome":"pending database decision","status":"pending","next_action":"await answer"},
-  {"capability":"runtime secrets","source":"ENVIRONMENT.md","outcome":"DATABASE_URL, BETTER_AUTH_SECRET and service keys not set in this project","status":"pending","next_action":"request via secure secret form after decision"},
-  {"capability":"storage (Scaleway S3), email, Stripe, cron","source":"ENVIRONMENT.md","outcome":"code preserved; keys not set","status":"pending","next_action":"request keys when verifying"}
+  {
+    "capability": "code",
+    "source": "github.com/Routbe/route-roam-92cd76ce@542a912",
+    "outcome": "copied as is (no .git, no node_modules)",
+    "status": "done",
+    "next_action": "none"
+  },
+  {
+    "capability": "preview build",
+    "source": "vendor-neutral vite.config.ts",
+    "outcome": "Lovable preview config in vite.config.ts; self-host config kept as vite.selfhost.config.ts (used by build:vercel)",
+    "status": "verified",
+    "next_action": "none"
+  },
+  {
+    "capability": "database (Neon Postgres, 280 migrations)",
+    "source": "db/",
+    "outcome": "keep own Neon database (user choice), direct DATABASE_URL as in source",
+    "status": "kept",
+    "next_action": "set DATABASE_URL for the preview (rout_app login)"
+  },
+  {
+    "capability": "auth (Better Auth, passkeys only)",
+    "source": "src/lib/auth",
+    "outcome": "keep Better Auth passkey-only login (user choice)",
+    "status": "kept",
+    "next_action": "set BETTER_AUTH_SECRET and public URLs, then test sign-in"
+  },
+  {
+    "capability": "runtime secrets",
+    "source": "ENVIRONMENT.md",
+    "outcome": "DATABASE_URL, BETTER_AUTH_SECRET and service keys not set in this project",
+    "status": "pending",
+    "next_action": "request via secure secret form after decision"
+  },
+  {
+    "capability": "storage (Scaleway S3), email, Stripe, cron",
+    "source": "ENVIRONMENT.md",
+    "outcome": "code preserved; keys not set",
+    "status": "pending",
+    "next_action": "request keys when verifying"
+  }
 ]
