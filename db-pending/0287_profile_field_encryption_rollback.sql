@@ -6,6 +6,9 @@ begin
   if exists (select 1 from vault_enclave.profile_field_keys) then
     raise exception '0287 rollback refused: profile field keys exist';
   end if;
+  if exists (select 1 from vault_enclave.audit_logs where action = 'profile_field_key_register') then
+    raise exception '0287 rollback refused: the audit chain records key registrations';
+  end if;
   if exists (select 1 from public.profiles where coalesce(business_vat_sealed, stripe_account_id_sealed, payment_method_sealed,
       moderation_reason_sealed, moderated_by_sealed, email_sealed, forwarding_email_sealed, legal_first_name_sealed,
       legal_last_name_sealed, last_city_sealed, last_country_sealed, forwarding_email_token_bidx) is not null) then

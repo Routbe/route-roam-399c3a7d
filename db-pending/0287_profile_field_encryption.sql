@@ -204,6 +204,8 @@ revoke all on function public.rout_rpf1_shape_ok(bytea) from public, rout_app;
 revoke all on function public.rout_profile_field_keys() from public, rout_app;
 revoke all on function public.rout_profile_field_key_register(bytea, bytea, bytea) from public, rout_app;
 revoke all on function public.rout_profile_referred_mine() from public, rout_app;
+-- Pure shape check used by CHECK constraints on rows rout_app writes.
+grant execute on function public.rout_rpf1_shape_ok(bytea) to rout_app;
 grant execute on function public.rout_profile_field_keys() to rout_app;
 grant execute on function public.rout_profile_field_key_register(bytea, bytea, bytea) to rout_app;
 grant execute on function public.rout_profile_referred_mine() to rout_app;
