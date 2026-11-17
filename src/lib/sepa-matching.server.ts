@@ -13,6 +13,7 @@
 import { parseAllRoutReferences, parseAmountCents, parseRoutReference } from "./reference-parser";
 import { extractPayerName, matchPayerName } from "./sepa-name-match";
 import { queueSepaReview } from "./sepa-review.server";
+import { profileFieldPatch } from "./profile-private/sealed-profile.server";
 
 export type MatchLevel = 1 | 2 | 3;
 

@@ -11,6 +11,7 @@ import type { UserSegment } from "./admin-segments";
 import { VIP_HANDLE_GRANT, needsVipGrant, normalizeHandleInput } from "./handle-rules";
 import { writeAudit } from "./admin.server";
 import { selectTolerant } from "./optional-columns";
+import { profileFieldPatch } from "./profile-private/sealed-profile.server";
 
 const PERMANENT_BAN = "876000h"; // ~100 years
 
