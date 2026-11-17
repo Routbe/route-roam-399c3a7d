@@ -93,3 +93,30 @@ export function openProfileRow<T extends Record<string, unknown>>(ring: FieldKey
 export function indexCandidates(ring: FieldKeyring, field: IndexedProfileField | IndexOnlyField, value: string): Uint8Array[] {
   return ring.versions.map((v) => blindIndex(ring.key(v), v, field, value));
 }
+
+const HEX_BYTEA = /^\\x([0-9a-f]{2})*$/i;
+
+/**
+ * A profile row that went through to_jsonb() (export definer) carries bytea as "\x…" text.
+ * Turns the sealed columns back into bytes so openProfileRow can use them; other keys are kept.
+ */
+export function sealedBytesFromJson<T extends Record<string, unknown>>(row: T): T {
+  const out: Record<string, unknown> = { ...row };
+  for (const c of SEALED_COLUMNS) {
+    const v = out[c];
+    if (typeof v === "string" && HEX_BYTEA.test(v)) {
+      const hex = v.slice(2);
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+      out[c] = bytes;
+    }
+  }
+  return out as T;
+}
+
+/** Drops every ciphertext and blind-index column, e.g. before showing an export to its owner. */
+export function withoutSealedColumns<T extends Record<string, unknown>>(row: T): T {
+  const out: Record<string, unknown> = { ...row };
+  for (const c of SEALED_COLUMNS) delete out[c];
+  return out as T;
+}
