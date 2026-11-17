@@ -237,14 +237,30 @@ export async function applyStripeEvent(event: StripeEvent): Promise<string> {
     const payoutsEnabled = object?.["payouts_enabled"] === true;
     const status = chargesEnabled && payoutsEnabled ? "active" : "pending";
     const { sql } = await import("./neon");
-    await sql`
-      update public.profiles
-         set stripe_account_status = ${status},
-             stripe_charges_enabled = ${chargesEnabled},
-             stripe_payouts_enabled = ${payoutsEnabled},
-             updated_at = now()
-       where stripe_account_id = ${accountId}
-    `;
+    // A1: once db-pending/0287 is live the account id exists only sealed; match its blind index
+    // (every key version) and, until the backfill finished, the legacy plaintext column too.
+    const { profileLookupHex } = await import("./profile-private/sealed-profile.server");
+    const idx = await profileLookupHex("stripe_account_id", accountId);
+    if (idx) {
+      await sql`
+        update public.profiles
+           set stripe_account_status = ${status},
+               stripe_charges_enabled = ${chargesEnabled},
+               stripe_payouts_enabled = ${payoutsEnabled},
+               updated_at = now()
+         where stripe_account_id_bidx = any(array(select pg_catalog.decode(h, 'hex') from unnest(${idx}::text[]) h))
+            or stripe_account_id = ${accountId}
+      `;
+    } else {
+      await sql`
+        update public.profiles
+           set stripe_account_status = ${status},
+               stripe_charges_enabled = ${chargesEnabled},
+               stripe_payouts_enabled = ${payoutsEnabled},
+               updated_at = now()
+         where stripe_account_id = ${accountId}
+      `;
+    }
     return `connect account ${status}`;
   }
 

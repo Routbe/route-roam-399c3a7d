@@ -372,7 +372,8 @@ async function activate(
     .update({
       is_paid: true,
       is_early_believer: true,
-      payment_method: "bank_transfer_automatic",
+      // A1: sealed (plaintext NULL) once db-pending/0287 is live.
+      ...(await profileFieldPatch(payment.user_id, { payment_method: "bank_transfer_automatic" })),
       tier: payment.tier,
       verified: true,
       status: "active",

@@ -260,9 +260,9 @@ export async function setSuspension(opts: {
     .update({
       is_suspended: opts.suspended,
       status: opts.suspended ? "suspended" : "active",
-      moderation_reason: opts.suspended ? (opts.reason ?? null) : null,
+      // A1: reason and moderator are sealed (plaintext NULL) once db-pending/0287 is live.
+      ...(await profileFieldPatch(opts.userId, { moderation_reason: opts.suspended ? (opts.reason ?? null) : null, moderated_by: opts.adminId })),
       moderated_at: new Date().toISOString(),
-      moderated_by: opts.adminId,
     })
     .eq("id", opts.userId);
   if (error) return { ok: false as const, reason: error.message };
@@ -307,9 +307,8 @@ export async function setBan(opts: {
       is_banned: opts.banned,
       is_suspended: opts.banned,
       status: opts.banned ? "banned" : "active",
-      moderation_reason: opts.banned ? (opts.reason ?? null) : null,
+      ...(await profileFieldPatch(opts.userId, { moderation_reason: opts.banned ? (opts.reason ?? null) : null, moderated_by: opts.adminId })),
       moderated_at: new Date().toISOString(),
-      moderated_by: opts.adminId,
     })
     .eq("id", opts.userId);
   if (error) return { ok: false as const, reason: error.message };
@@ -700,7 +699,7 @@ export async function markUserPaid(opts: {
       verified: opts.paid,
       verified_at: opts.paid ? new Date().toISOString() : null,
       tier: opts.paid ? "verified" : "free",
-      payment_method: opts.paid ? "manual_admin" : null,
+      ...(await profileFieldPatch(opts.userId, { payment_method: opts.paid ? "manual_admin" : null })),
     })
     .eq("id", opts.userId);
   if (error) return { ok: false as const, reason: error.message };
@@ -926,7 +925,7 @@ export async function reprocessInboundPayment(eventId: string, adminId: string) 
     .update({
       is_paid: true,
       is_early_believer: true,
-      payment_method: "bank_transfer_manual_reprocess",
+      ...(await profileFieldPatch(payment.user_id, { payment_method: "bank_transfer_manual_reprocess" })),
       tier: payment.tier,
       verified: true,
       status: "active",

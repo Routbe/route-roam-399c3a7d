@@ -61,3 +61,31 @@ export async function profileLookupIndexes(field: IndexedProfileField | IndexOnl
 }
 
 export { bidxColumn, isIndexed, sealedColumn };
+
+const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+
+/**
+ * Lookup indexes as hex strings, to pass as text[] and decode in SQL:
+ *   where f_bidx = any(array(select pg_catalog.decode(h, 'hex') from unnest($1::text[]) h))
+ * null before 0287 (compare the legacy column instead).
+ */
+export async function profileLookupHex(field: IndexedProfileField | IndexOnlyField, value: string): Promise<string[] | null> {
+  const idx = await profileLookupIndexes(field, value);
+  return idx ? idx.map(toHex) : null;
+}
+
+const COLUMN_NAME = /^[a-z][a-z_]{1,40}$/;
+
+/**
+ * Writes private fields of one profile in their own UPDATE (sealed once 0287 is live, plaintext
+ * before). Column names come only from the fixed field list; values are always parameters.
+ */
+export async function writeProfilePrivateFields(profileId: string, values: ProfileFieldValues): Promise<void> {
+  const patch = await profileFieldPatch(profileId, values);
+  const cols = Object.keys(patch);
+  if (!cols.length) return;
+  if (!cols.every((c) => COLUMN_NAME.test(c))) throw new Error("profile_field_column_invalid");
+  const { sql } = await import("@/lib/neon");
+  const text = `update public.profiles set ${cols.map((c, i) => `${c} = $${i + 2}`).join(", ")}, updated_at = now() where id = $1`;
+  await sql.query(text, [profileId, ...cols.map((c) => patch[c] ?? null)]);
+}

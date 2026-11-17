@@ -62,8 +62,10 @@ export async function approveWithWhitelist(
       reviewed_by = ${adminId} where id = ${requestId}`;
   } else {
     await sql`update public.profiles set is_business = true, business_name = ${req["company_name"] as string},
-      business_vat = ${req["vat_number"] as string}, verified = true,
-      verified_at = coalesce(verified_at, now()) where id = ${userId}`;
+      verified = true, verified_at = coalesce(verified_at, now()) where id = ${userId}`;
+    // A1: the VAT number is stored sealed (plaintext NULL) once db-pending/0287 is live.
+    const { writeProfilePrivateFields } = await import("./profile-private/sealed-profile.server");
+    await writeProfilePrivateFields(userId, { business_vat: (req["vat_number"] as string | null) ?? null });
     await sql`update public.business_verifications set status = 'approved', reviewed_at = now(),
       reviewed_by = ${adminId} where id = ${requestId}`;
   }
