@@ -333,3 +333,12 @@
 - [ ] Inbox: share the workspace key with other owners/admins — needs a published device public key per member (no such registry yet; owner decision)
 - [ ] Inbox live click-through — needs DATABASE_URL in an environment
 - [ ] A1 profile privacy: EXPAND (definers for moderation/Stripe/VAT reads, code moved) then CONTRACT in db-pending revoking those columns from rout_app
+
+## Owner directive 2026-11-17 12:09 UTC — A1 field encryption + multi-admin device keys
+- [ ] A1: application-level AEAD encryption for every private profile field + blind HMAC-BLAKE3 indexes for lookups (no plaintext PII in Neon)
+- [ ] A1: read/write paths for profile fields moved to the sealed columns; full fast-check suite green
+- [ ] A1: EXPAND migration prepared in db-pending (not applied) — wait for "GO A1"
+- [ ] Device key register (workspace_member_device_keys) + per-device HPKE X25519 envelopes (workspace_member_envelopes)
+- [ ] Automatic epoch rotation when a manager role is revoked
+- [ ] /w/:slug/ask seals against the active epoch key; managers decrypt only through their registered device envelopes
+- [ ] Device key migration prepared, not applied — wait for owner GO
