@@ -1,13 +1,19 @@
-// Lovable preview build: @lovable.dev/vite-tanstack-config already includes tanstackStart,
-// viteReact, tailwindcss, tsConfigPaths, nitro (build-only), VITE_* env injection, the @ alias
-// and React/TanStack dedupe — do NOT add them again. The vendor-neutral setup for self-hosting
-// (NITRO_PRESET node-server / vercel) lives in vite.selfhost.config.ts.
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+// Vendor-neutral build: standard TanStack Start + Vite 7 plugins. The server
+// target is chosen with NITRO_PRESET (default node-server, or vercel when Vercel
+// builds; see scripts/nitro-target.ts). No hosting provider is assumed.
+import { defineConfig, loadEnv } from "vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import viteReact from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import tsConfigPaths from "vite-tsconfig-paths";
+import { nitro } from "nitro/vite";
+
 import mdx from "@mdx-js/rollup";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import { readdirSync, readFileSync } from "node:fs";
+import { nitroTarget } from "./scripts/nitro-target";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
@@ -45,14 +51,34 @@ const docsCatalogPlugin: Plugin = {
   },
 };
 
-export default defineConfig({
-  tanstackStart: {
-    importProtection: { behavior: "error", client: { files: ["**/server/**"], specifiers: ["server-only"] } },
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    server: { entry: "server" },
-  },
-  plugins: [
-    docsCatalogPlugin,
-    mdx({ include: /\.mdx$/, providerImportSource: "@mdx-js/react", remarkPlugins: [remarkFrontmatter, remarkMdxFrontmatter, remarkGfm] }),
-  ],
+export default defineConfig(({ command, mode }) => {
+  const envDefine: Record<string, string> = {};
+  for (const [key, value] of Object.entries(loadEnv(mode, process.cwd(), "VITE_"))) {
+    envDefine[`import.meta.env.${key}`] = JSON.stringify(value);
+  }
+  return {
+    define: envDefine,
+    css: { transformer: "lightningcss" },
+    resolve: {
+      alias: { "@": `${process.cwd()}/src` },
+      dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
+    },
+    optimizeDeps: {
+      include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
+    },
+    server: { host: "::", port: Number(process.env["PORT"] ?? 8080) },
+    plugins: [
+      tailwindcss(),
+      tsConfigPaths({ projects: ["./tsconfig.json"] }),
+      tanstackStart({
+        importProtection: { behavior: "error", client: { files: ["**/server/**"], specifiers: ["server-only"] } },
+        // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
+        server: { entry: "server" },
+      }),
+      ...(command === "build" ? [nitro(nitroTarget(process.env))] : []),
+      viteReact(),
+      docsCatalogPlugin,
+      mdx({ include: /\.mdx$/, providerImportSource: "@mdx-js/react", remarkPlugins: [remarkFrontmatter, remarkMdxFrontmatter, remarkGfm] }),
+    ],
+  };
 });
