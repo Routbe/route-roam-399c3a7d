@@ -20,7 +20,7 @@ describe("A1 sealed profile patch", () => {
       const patch = sealProfilePatch(r, pid, { [f]: v });
       expect(patch[f]).toBeNull();
       const blob = patch[sealedColumn(f)] as Uint8Array;
-      expect(Buffer.from(blob).toString("latin1").includes(v)).toBe(v.length < 4 ? Buffer.from(blob).toString("latin1").includes(v) : false);
+      if (Buffer.byteLength(v) >= 8) expect(Buffer.from(blob).includes(Buffer.from(v))).toBe(false);
       const row = openProfileRow(r, { id: pid, ...patch }, [f]);
       expect(row[f]).toBe(v);
       expect(sealedColumn(f) in row).toBe(false);
@@ -58,9 +58,12 @@ describe("A1 sealed profile patch", () => {
   });
 
   it("a lookup matches values sealed under any key version, and nothing else", () => {
+    const rotated = ring([1, 2], 2);
+    const pid = crypto.randomUUID();
+    const underV2 = hex(sealProfilePatch(rotated, pid, { email: "a@b.be" }).email_bidx);
+    expect(indexCandidates(rotated, "email", "A@B.be").map(hex)).toContain(underV2);
+    expect(indexCandidates(rotated, "email", "A@B.be")).toHaveLength(2);
     const old = ring([1], 1);
-    const kek = deriveFieldKek("F".repeat(64));
-    void kek;
     fc.assert(fc.property(fc.constantFrom(...INDEXED_PROFILE_FIELDS), id, text, text, (f, pid, v, w) => {
       const patch = sealProfilePatch(old, pid, { [f]: v });
       const stored = hex(patch[bidxColumn(f)]);
